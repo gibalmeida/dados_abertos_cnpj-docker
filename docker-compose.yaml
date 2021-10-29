@@ -1,0 +1,49 @@
+version: '3.6'
+
+services:
+  database:
+    image: mariadb:latest
+    command: --connect_timeout 43200 --max_allowed_packet 1073741824 --net_read_timeout 1000 --innodb_buffer_pool_size 1G --character-set-server=latin1 --collation-server=latin1_general_ci
+    environment:
+      MYSQL_ROOT_PASSWORD: root_password
+      MYSQL_DATABASE: cnpj
+      MYSQL_USER: username
+      MYSQL_PASSWORD: password
+    volumes:
+      - database_vol:/var/lib/mysql
+    restart: always
+
+  graphql_server:
+    image: gibalmeida/dados-abertos-cnpj-graphql-server:latest
+    links:
+    - database:mariadb-host
+    depends_on:
+      - database
+    environment:
+      DATABASE_URL: mysql://username:password@mariadb-host/cnpj      
+      ROCKET_WORKS: 4 # Informe a quantidade de CPUs do Servidor X 2      
+      ROCKET_LOGLEVEL: critical # Em ambiente de produção deixe como "critical" e em ambiente de desenvolvimento/staging deixe como "normal"
+    ports:
+      - "8000:80"
+    restart: always
+
+  mirroring:
+    image: gibalmeida/dados-abertos-cnpj-mirroring:latest
+    volumes:
+      - mirror_vol:/cnpj_mirror
+    restart: always
+
+  importer:
+    image: gibalmeida/dados-abertos-cnpj-importer:latest
+    environment:
+      DATABASE_URL: mysql://username:password@mariadb-host/cnpj
+      RECORDS_PER_INSERT: 1000
+    links:
+    - database:mariadb-host
+    volumes:
+      - mirror_vol:/cnpj_mirror
+    restart: always
+
+volumes:
+  database_vol:
+  mirror_vol:

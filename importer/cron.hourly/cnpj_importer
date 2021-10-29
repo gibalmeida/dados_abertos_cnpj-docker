@@ -1,0 +1,46 @@
+#!/bin/bash
+
+MIRROR_FOLDER=/cnpj_mirror
+
+ultima_liberacao_importada() {
+    if [[ -e "ultima_liberacao_importada.txt" ]]; then
+       cat ultima_liberacao_importada.txt
+    else
+       echo "nenhuma"
+    fi
+}
+
+ultima_liberacao_baixada() {
+    if [[ -e "ultima_liberacao_baixada.txt" ]]; then
+       cat ultima_liberacao_baixada.txt
+    else
+       echo "nenhuma"
+    fi
+}
+
+importar_arquivos () { 
+    ULTIMA_LIBERACAO_BAIXADA=$(ultima_liberacao_baixada)
+    ULTIMA_LIBERACAO_IMPORTADA=$(ultima_liberacao_importada)
+    if [[ "$ULTIMA_LIBERACAO_BAIXADA" != "$ULTIMA_LIBERACAO_IMPORTADA" ]]; then
+        importer -r $ROWS_PER_INSERT -v -t -d -f $MIRROR_FOLDER
+        if [[ $? -eq 0 ]]; then
+          echo "Importação efetuada com sucesso!"
+          echo $ULTIMA_LIBERACAO_BAIXADA > "ultima_liberacao_importada.txt"
+        fi
+    else
+        echo "Nenhuma liberação nova para importar!"
+    fi
+}
+
+for variable_value in $(cat /proc/1/environ | sed 's/\x00/\n/g'); do
+  export $variable_value
+done
+
+cd $MIRROR_FOLDER
+
+# Caso o comando importer já esteja executando, não faz nada... senão teríamos
+# vários importers rodando ao mesmo tempo, pois a cada hora iniciaria um novo.
+importer_process_id=$(pidof importer)
+if [[ -z $importer_process_id ]]; then
+    importar_arquivos
+fi

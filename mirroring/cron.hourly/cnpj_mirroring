@@ -1,0 +1,140 @@
+#!/bin/bash
+
+MIRROR_FOLDER=/cnpj_mirror
+
+
+todos_arquivos_foram_baixados_e_estao_ok() {
+    if [[ ! -e "liberacao_atual.txt" ]]; then
+        return 1
+    fi
+    
+    LIBERACAO_ATUAL=$(cat liberacao_atual.txt)
+    NOMEARQ_LISTA_ARQUIVOS="lista_de_arquivos_"$LIBERACAO_ATUAL".txt"
+    
+    if [[ ! -e $NOMEARQ_LISTA_ARQUIVOS ]]; then
+        return 1
+    fi
+    
+    RETURN=0
+    while IFS= read -r nome_do_arquivo; do
+        echo "Checando o arquivo "$nome_do_arquivo
+        if [[ ! -e $nome_do_arquivo".ok" ]]; then
+            RETURN=1
+            return
+        fi
+    done < $NOMEARQ_LISTA_ARQUIVOS
+    
+    return $RETURN
+}
+
+# Cria uma lista de arquivos da liberação atual e ecoa o número da liberação atual
+liberacao_atual() {
+    wget --tries=0 -N http://200.152.38.155/CNPJ
+    if [[ $? -eq 0 && -e "CNPJ" ]]; then
+        LIBERACAO_ATUAL=$(cat CNPJ | sed -n 's/^.*href=".*Y0\.\(D[0-9]*\)\.EMPRECSV.*$/\1/p')
+        echo $LIBERACAO_ATUAL > liberacao_atual.txt
+        NOMEARQ_LISTA_ARQUIVOS="lista_de_arquivos_"$LIBERACAO_ATUAL".txt"
+        if [[ -e $NOMEARQ_LISTA_ARQUIVOS ]]; then
+          rm $NOMEARQ_LISTA_ARQUIVOS
+        fi
+        cat CNPJ | sed -n 's/^.*href="\(.*\.\)\(D[0-9]*\)\(\..*zip\)">.*right">\(.*\)<\/td.*right.*$/\2 \1\2\3 \4/p'| while read liberacao nome_arquivo data_arquivo hora_arquivo; do
+            echo $nome_arquivo >> $NOMEARQ_LISTA_ARQUIVOS
+        done
+        echo $LIBERACAO_ATUAL
+        return 0
+    fi
+    echo "falha ao baixar a lista de arquivos da liberação"
+    return 1
+}
+
+ultima_liberacao_baixada() {
+    if [[ -e "ultima_liberacao_baixada.txt" ]]; then
+        cat ultima_liberacao_baixada.txt
+    else
+        echo "nenhuma"
+    fi
+}
+
+penultima_liberacao_baixada() {
+    if [[ -e "penultima_liberacao_baixada.txt" ]]; then
+        cat penultima_liberacao_baixada.txt
+    else
+        echo "nenhuma"
+    fi
+}
+
+checa_arquivos_baixados () {
+    for file in $MIRROR_FOLDER/*.zip
+    do
+        if [[ ! -e $file".ok" ]]; then
+            echo "Checando arquivo "$file
+            unzip -t -qq $file
+            if [[ $? -eq 0 ]]; then
+                echo "Arquivo OK!"
+                touch $file".ok"
+            else
+                echo "Arquivo inválido! Removendo ele para que seja baixado novamente."
+                rm $file
+            fi
+        else
+            echo $file" já foi testado antes."
+        fi
+    done
+}
+
+# Apaga os arquivos baixados da penúltima liberação baixada, pois não podemos apagar os
+# arquivos da última liberação baixada, porque não garantias de que ela já foi importada com sucesso
+apagar_arquivos_da_penultima_liberacao_baixada() {
+    ULTIMA_LIBERACAO_BAIXADA=$(ultima_liberacao_baixada)
+    PENULTIMA_LIBERACAO_BAIXADA=$(penultima_liberacao_baixada)
+    if [[ "$ULTIMA_LIBERACAO_BAIXADA" != "$PENULTIMA_LIBERACAO_BAIXADA" && "$PENULTIMA_LIBERACAO_BAIXADA" != "nenhuma" ]]; then
+        echo "Apagando arquivos da penúltima liberação baixada."
+        NOMEARQ_LISTA_ARQUIVOS="lista_de_arquivos_"$PENULTIMA_LIBERACAO_BAIXADA".txt"
+        if [[ -e $NOMEARQ_LISTA_ARQUIVOS ]]; then
+            while read -r arquivo; do
+                rm $arquivo
+                rm $arquivo".ok"
+            done < $NOMEARQ_LISTA_ARQUIVOS
+            rm "lista_de_arquivos_"$PENULTIMA_LIBERACAO_BAIXADA".txt"
+        fi
+    fi
+    
+}
+
+espelhar_arquivos () {
+    # pega o número da última liberação baixada completa
+    ULTIMA_LIBERACAO_BAIXADA=$(ultima_liberacao_baixada)
+    LIBERACAO_ATUAL=$(liberacao_atual)
+    
+    if [[ $? -eq 0 && "$ULTIMA_LIBERACAO_BAIXADA" != "$LIBERACAO_ATUAL" ]]; then
+        # checa antes, para que possa apagar os downloads incompletos
+        checa_arquivos_baixados
+        
+        # tenta baixar os arquivos .zip encontrados
+        wget --tries=0 -c --recursive --level=1 -nd --no-remove-listing -N -X icons -A "*.zip" http://200.152.38.155/CNPJ/
+        
+        # faz outra chamada para verificar se os arquivos restantes que foram baixados estão ok (se não estão incompletos ou corrompidos)
+        checa_arquivos_baixados
+        
+        todos_arquivos_foram_baixados_e_estao_ok
+        if [[ $? -eq 0 ]]; then
+            echo "Todos os arquivos da liberação atual foram baixados e estão prontos para uso!"
+            if [[ -e "ultima_liberacao_baixada.txt" ]]; then
+                mv ultima_liberacao_baixada.txt penultima_liberacao_baixada.txt
+            fi
+            cp liberacao_atual.txt ultima_liberacao_baixada.txt
+        fi
+    else
+        echo "Nenhuma liberação nova encontrada!"
+    fi
+}
+
+cd $MIRROR_FOLDER
+
+# Caso o comando wget já esteja executando, não faz nada... senão teríamos
+# vários wgets rodando ao mesmo tempo, pois a cada hora iniciaria um novo.
+wget_process_id=$(pidof wget)
+if [[ -z $wget_process_id ]]; then
+    espelhar_arquivos
+    apagar_arquivos_da_penultima_liberacao_baixada
+fi
