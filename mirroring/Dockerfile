@@ -7,7 +7,7 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends \
        cron wget unzip \
     && rm -rf /var/lib/apt/lists/*
-COPY cron.hourly/cnpj_mirroring /etc/cron.hourly/
-RUN chmod 0755 /etc/cron.hourly/cnpj_mirroring
+COPY cron.daily/cnpj_mirroring /etc/cron.daily/
+RUN chmod 0755 /etc/cron.daily/cnpj_mirroring
 VOLUME [ "/cnpj_mirror" ]
 CMD [ "cron", "-f" ]
