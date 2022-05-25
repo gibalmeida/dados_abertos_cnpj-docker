@@ -1,31 +1,76 @@
 #!/bin/bash
 
 MIRROR_FOLDER=/cnpj_mirror
+IMPORTER_FOLDER=/cnpj_importer
 
 ultima_liberacao_importada() {
     if [[ -e "ultima_liberacao_importada.txt" ]]; then
-       cat ultima_liberacao_importada.txt
+        cat ultima_liberacao_importada.txt
     else
-       echo "nenhuma"
+        echo "nenhuma"
     fi
 }
 
 ultima_liberacao_baixada() {
     if [[ -e "ultima_liberacao_baixada.txt" ]]; then
-       cat ultima_liberacao_baixada.txt
+        cat ultima_liberacao_baixada.txt
     else
-       echo "nenhuma"
+        echo "nenhuma"
     fi
 }
 
-importar_arquivos () { 
+function normalize_file_name()
+{
+    
+    case $1 in
+        *"EMPRECSV"*)
+            tipo="EMP"
+        ;;
+        *"ESTABELE"*)
+            tipo="EST"
+        ;;
+        *"SOCIOCSV"*)
+            tipo="SOC"
+        ;;
+        *)
+            tipo="OUTRO"
+        ;;
+    esac
+    
+    if [[ "$tipo" != "OUTRO" ]]; then
+        parte=$(echo "$1" | sed -n 's/.*K03200Y\([0-9]\+\)\..*/\1/p')
+        
+        if [[ $parte == "0" ]]; then
+            parte="10"
+        else
+            parte="0"$parte
+        fi
+        normalized_filename=$tipo$parte"-"$(basename $file)
+    else
+        normalized_filename=$tipo"-"$(basename $file)
+    fi
+}
+
+importar_arquivos () {
     ULTIMA_LIBERACAO_BAIXADA=$(ultima_liberacao_baixada)
     ULTIMA_LIBERACAO_IMPORTADA=$(ultima_liberacao_importada)
     if [[ "$ULTIMA_LIBERACAO_BAIXADA" != "$ULTIMA_LIBERACAO_IMPORTADA" ]]; then
-        importer -r $ROWS_PER_INSERT -v -t -d -f $MIRROR_FOLDER
+        
+        for file in $MIRROR_FOLDER/*.zip
+        do
+            normalize_file_name $file
+            ln -sf $file $IMPORTER_FOLDER/$normalized_filename
+        done
+        
+        importer -r $ROWS_PER_INSERT -v -t -d -f $IMPORTER_FOLDER
         if [[ $? -eq 0 ]]; then
-          echo "Importação efetuada com sucesso!"
-          echo $ULTIMA_LIBERACAO_BAIXADA > "ultima_liberacao_importada.txt"
+            echo "Importação efetuada com sucesso!"
+            echo $ULTIMA_LIBERACAO_BAIXADA > "ultima_liberacao_importada.txt"
+            
+            for file in $IMPORTER_FOLDER/*.zip
+            do
+                rm $file
+            done
         fi
     else
         echo "Nenhuma liberação nova para importar!"
@@ -33,7 +78,7 @@ importar_arquivos () {
 }
 
 for variable_value in $(cat /proc/1/environ | sed 's/\x00/\n/g'); do
-  export $variable_value
+    export $variable_value
 done
 
 cd $MIRROR_FOLDER
