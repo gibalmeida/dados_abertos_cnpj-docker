@@ -23,13 +23,13 @@ function normalize_file_name()
 {
     
     case $1 in
-        *"EMPRECSV"*)
+        *"Empresas"*)
             tipo="EMP"
         ;;
-        *"ESTABELE"*)
+        *"Estabelecimentos"*)
             tipo="EST"
         ;;
-        *"SOCIOCSV"*)
+        *"Socios"*)
             tipo="SOC"
         ;;
         *)
@@ -38,7 +38,7 @@ function normalize_file_name()
     esac
     
     if [[ "$tipo" != "OUTRO" ]]; then
-        parte=$(echo "$1" | sed -n 's/.*K03200Y\([0-9]\+\)\..*/\1/p')
+        parte=$(echo "$1" | sed -n 's/.*s\([0-9]\+\)\.zip.*/\1/p')
         
         if [[ $parte == "0" ]]; then
             parte="10"
