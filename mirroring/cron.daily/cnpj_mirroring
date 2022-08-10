@@ -31,13 +31,13 @@ todos_arquivos_foram_baixados_e_estao_ok() {
 liberacao_atual() {
     wget --tries=0 -N http://200.152.38.155/CNPJ
     if [[ $? -eq 0 && -e "CNPJ" ]]; then
-        LIBERACAO_ATUAL=$(cat CNPJ | sed -n 's/^.*href=".*Y0\.\(D[0-9]*\)\.EMPRECSV.*$/\1/p')
+        LIBERACAO_ATUAL=$(cat CNPJ | sed -n 's/^.*Cnaes.*\([0-9]\{4\}\)-\([0-9]\{2\}\)-\([0-9]\{2\}\).*$/\1\2\3/p')
         echo $LIBERACAO_ATUAL > liberacao_atual.txt
         NOMEARQ_LISTA_ARQUIVOS="lista_de_arquivos_"$LIBERACAO_ATUAL".txt"
         if [[ -e $NOMEARQ_LISTA_ARQUIVOS ]]; then
-          rm $NOMEARQ_LISTA_ARQUIVOS
+            rm $NOMEARQ_LISTA_ARQUIVOS
         fi
-        cat CNPJ | sed -n 's/^.*href="\(.*\.\)\(D[0-9]*\)\(\..*zip\)">.*right">\(.*\)<\/td.*right.*$/\2 \1\2\3 \4/p'| while read liberacao nome_arquivo data_arquivo hora_arquivo; do
+        cat CNPJ | sed -n 's/^.*href="\(.*\.zip\)">.*right">\(.*\)<\/td.*right.*$/\1 \2/p'| while read nome_arquivo data_arquivo hora_arquivo; do
             echo $nome_arquivo >> $NOMEARQ_LISTA_ARQUIVOS
         done
         echo $LIBERACAO_ATUAL
