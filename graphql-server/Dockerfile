@@ -1,4 +1,4 @@
-FROM rust:1.56-buster as builder
+FROM rust:1.72-buster as builder
 RUN git clone https://github.com/gibalmeida/dados_abertos_cnpj.git
 WORKDIR /dados_abertos_cnpj
 # COPY . .
